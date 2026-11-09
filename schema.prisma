@@ -1,0 +1,129 @@
+generator client { provider = "prisma-client-js" }
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum DogSize { SMALL MEDIUM LARGE XLARGE }
+enum GoalCategory { TRAINING HABIT WALK MEDICAL GROOMING }
+enum ExpenseCategory { FOOD TREATS VET TOYS GROOMING TRAINING }
+enum SosStatus { ACTIVE FOUND CANCELLED }
+enum RsvpStatus { GOING MAYBE DECLINED }
+
+model User {
+  id        String   @id @db.Uuid            // = Supabase auth.users.id
+  email     String   @unique
+  name      String
+  phone     String?
+  lastLat   Float?
+  lastLng   Float?
+  pushToken String?
+  createdAt DateTime @default(now())
+  dogs      Dog[]
+  playdates Playdate[] @relation("Creator")
+  rsvps     Rsvp[]
+  @@index([lastLat, lastLng])
+}
+
+model Dog {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @db.Uuid
+  name          String
+  breed         String                         // list value or custom text
+  age           Int
+  size          DogSize
+  energyLevel   Int                            // 1-5, validated in API
+  isNeutered    Boolean  @default(false)
+  tags          String[]
+  avatarUrl     String?
+  monthlyBudget Decimal? @db.Decimal(10, 2)
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  checkIns      ParkCheckIn[]
+  goals         PawGoal[]
+  expenses      Expense[]
+  sosAlerts     SosAlert[]
+  @@index([userId])
+  @@index([breed, energyLevel])
+}
+
+model Park {
+  id       String @id @default(uuid()) @db.Uuid
+  name     String
+  lat      Float
+  lng      Float
+  checkIns ParkCheckIn[]
+  @@index([lat, lng])
+}
+
+model ParkCheckIn {
+  id           String    @id @default(uuid()) @db.Uuid
+  dogId        String    @db.Uuid
+  parkId       String    @db.Uuid
+  checkedInAt  DateTime  @default(now())
+  checkedOutAt DateTime?
+  lat          Float
+  lng          Float
+  dog          Dog       @relation(fields: [dogId], references: [id], onDelete: Cascade)
+  park         Park      @relation(fields: [parkId], references: [id])
+  @@index([parkId, checkedOutAt])
+  @@index([dogId])
+}
+
+model Playdate {
+  id           String   @id @default(uuid()) @db.Uuid
+  creatorId    String   @db.Uuid
+  title        String
+  description  String?
+  locationName String
+  lat          Float
+  lng          Float
+  scheduledAt  DateTime
+  isPrivate    Boolean  @default(false)
+  creator      User     @relation("Creator", fields: [creatorId], references: [id], onDelete: Cascade)
+  rsvps        Rsvp[]
+  @@index([scheduledAt])
+  @@index([creatorId])
+}
+
+model Rsvp {
+  playdateId String     @db.Uuid
+  userId     String     @db.Uuid
+  status     RsvpStatus @default(GOING)
+  playdate   Playdate   @relation(fields: [playdateId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@id([playdateId, userId])
+}
+
+model PawGoal {
+  id          String       @id @default(uuid()) @db.Uuid
+  dogId       String       @db.Uuid
+  title       String
+  category    GoalCategory
+  isCompleted Boolean      @default(false)
+  completedAt DateTime?
+  dog         Dog          @relation(fields: [dogId], references: [id], onDelete: Cascade)
+  @@index([dogId, isCompleted])
+}
+
+model Expense {
+  id       String          @id @default(uuid()) @db.Uuid
+  dogId    String          @db.Uuid
+  amount   Decimal         @db.Decimal(10, 2)
+  category ExpenseCategory
+  date     DateTime        @default(now())
+  notes    String?
+  dog      Dog             @relation(fields: [dogId], references: [id], onDelete: Cascade)
+  @@index([dogId, date])
+}
+
+model SosAlert {
+  id          String    @id @default(uuid()) @db.Uuid
+  dogId       String    @db.Uuid
+  lastSeenLat Float
+  lastSeenLng Float
+  status      SosStatus @default(ACTIVE)
+  createdAt   DateTime  @default(now())
+  dog         Dog       @relation(fields: [dogId], references: [id], onDelete: Cascade)
+  @@index([status, createdAt])
+}
